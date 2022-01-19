@@ -178,3 +178,160 @@ NUIService.NUIGetNearPlayers = function (obj)
 
 	SendNUIMessage(json.encode(nuiReturn))
 end
+
+NUIService.NUIGiveItem = function (obj)
+	local playerPed = PlayerPedId()
+	local nearestPlayers = Utils.getNearestPlayers()
+
+	local data = Utils.expandoProcessing(obj)
+	local data2 = Utils.expandoProcessing(data.data)
+
+	for _, player in pairs(nearestPlayers) do
+		if player ~= PlayerId() then
+			if GetPlayerServerId(player) == tonumber(data.player) then
+				local itemName = data2.item
+				local target = tonumber(data.player)
+
+				if data2.type == "item_money" then
+					if isProcessingPay then return end
+					isProcessingPay = true
+					TriggerServerEvent("vorp_inventory:giveMoneyToPlayer", target, data2.count)
+				end
+
+				if data2.type ~= "item_money" and data2.id == 0 then
+					local amount = tonumber(data2.count)
+
+					if amount > 0 and UserInventory[itemName].getCount() >= amount then
+						TriggerServerEvent("vorpinventory:serverGiveItem", itemName, amount, target, 1)
+					end
+				end
+
+				if data2.type ~= "item_money" and data2.id ~= 0 then
+					TriggerServerEvent("vorpinventory:serverGiveWeapon2", tonumber(data2.id), target)
+				end
+
+				NUIService.LoadInv()
+			end
+		end
+	end
+end
+
+NUIService.NUIDropItem = function (obj)
+	local aux = Utils.expandoProcessing(obj)
+	local itemName = aux.item
+	local type = aux.type
+
+	if type == "item_money" then
+		TriggerServerEvent("vorpinventory:serverDropMoney", aux.number)
+	end
+
+	if type == "item_standard" then
+		print(aux.number)
+
+		if aux.number ~= nil and aux.number ~= '' then
+			if aux.number > 0 and UserInventory[itemName].getCount() >= tonumber(aux.number) then
+				TriggerServerEvent("vorpinventory:serverDropItem", itemName, aux.number, 1)
+				UserInventory[itemName].quitCount(aux.number)
+
+				if UserInventory[itemName].getcount() == 0 then
+					UserInventory[itemName] = nil
+				end
+			end
+		end
+	end
+
+	if type ~= "item_money" and type ~= "item_standard" then
+		TriggerServerEvent("vorpinventory:serverDropWeapon", aux.id)
+
+		if next(UserWeapons[aux.id]) ~= nil then
+			local weapon = UserWeapons[aux.id]	
+
+			if weapon.getUsed() then
+				weapon.setUsed(false)
+				RemoveWeaponFromPed(PlayerPedId(), GetHashKey(weapon.getName()), true, 0)
+			end
+
+			UserWeapons[aux.id] = nil
+		end
+	end
+
+	NUIService.LoadInv()
+end
+
+NUIService.NUISound = function (obj)
+	PlaySoundFrontend("BACK", "RDRO_Character_Creator_Sounds", true, 0)
+end
+
+NUIService.NUIFocusOff = function (obj)
+	NUIService.CloseInv()
+	TriggerEvent("vorp_stables:setClosedInv", false)
+	TriggerEvent("syn:closeinv")
+end
+
+NUIService.OnKey = function ()
+	if IsControlJustReleased(1, Config.openKey) and IsInputDisabled(0) then
+		if InInventory then
+			NUIService.CloseInv()
+			Wait(1000)
+		else
+			NUIService.OpenInv()
+			Wait(1000)
+		end
+	end
+end
+
+NUIService.LoadInv = function ()
+	local weapon = {}
+	DB_Items = {}
+	gg = {}
+	
+	TriggerServerEvent("vorpinventory:check_slots")
+	
+	for _, currentItem in pairs(UserInventory) do
+		local item = {}
+		item.count = currentItem.getCount()
+		item.limit = currentItem.getLimit()
+		item.label = currentItem.getLabel()
+		item.name = currentItem.getName()
+		item.type = currentItem.getType()
+		item.usable = currentItem.getCanuse()
+		item.canRemove = currentItem.getCanRemove()
+
+		table.insert(gg, item)
+	end
+
+	for _, currentWeapon in  pairs(UserWeapons) do
+		local weapon = {}
+		weapon.count = currentWeapon.getAllAmo()
+		weapon.limit = -1
+		weapon.label = Citizen.InvokeNative(0x89CF5FF3D363311E, GetHashKey(currentWeapon.getName()))
+		weapon.name = currentWeapon.getName()
+		weapon.hash = GetHashKey(currentWeapon.getName()) 
+		weapon.type = "item_weapon"
+		weapon.usable = true
+		weapon.canRemove = true
+		weapon.id = currentWeapon.getId()
+		weapon.used = currentWeapon.getUsed()
+
+		table.insert(gg, weapon)
+	end
+
+	DB_Items.action = setItems
+	DB_Items.itemList = gg
+
+	SendNUIMessage(json.encode(DB_Items))
+end
+
+NUIService.OpenInv = function ()
+	SetNuiFocus(true, true)
+	SendNUIMessage("{\"action\": \"display\", \"type\": \"main\"}")
+	InInventory = true
+
+	NUIService.LoadInv()
+end
+
+NUIService.CloseInv = function ()
+	SetNuiFocus(false, false)
+	SendNUIMessage("{\"action\": \"hide\"}")
+	InInventory = false
+end	
