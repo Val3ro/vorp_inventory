@@ -198,11 +198,94 @@ PickupsService.dropAllPlease = function ()
 end
 
 PickupsService.principalFunctionsPickups = function ()
-	
+	local playerPed = PlayerPedId()	
+	local coords = GetEntityCoords(playerPed, true, true)
+
+	if next(WorldPickups) == nil then
+		return 
+	end
+
+	for _, pickup in pairs(WorldPickups) do
+		local pickupCoords = vector3(pickup.coords.X, pickup.coords.Y, pickup.coords.Z)
+		local distance = #(pickupCoords - coords)
+
+		if distance <= 5.0 and not pickup.inRange then
+			if pickup.weaponid == 1 then
+				local name = pickup.name
+				if next(DB_Items[name]) ~= nil then
+					name = DB_Items[name].label
+				end
+				Utils.DrawText3D(pickup.coords, name)
+			else
+				local name = GetWeaponName(GetHashKey(pickup.name))
+				Utils.DrawText3D(pickup.coords, name)
+			end
+		end
+
+		if distance <= 1.2 and not pickup.inRange then
+			TaskLookAtEntity(playerPed, pickup.obj, 3000, 2048, 3)
+
+			if not active then
+				UipromptSetEnabled(PickPrompt, true)
+				UipromptSetVisible(PickPrompt, true)
+				active = true
+			end
+			
+			if UipromptHasHoldModeCompleted(PickPrompt) then
+				TriggerServerEvent("vorpinventory:onPickup", pickup.obj)
+				pickup.inRange = true
+				UipromptSetEnabled(PickPrompt, false)
+				UipromptSetVisible(PickPrompt, false)
+			end
+		else
+			if active then
+				UipromptSetEnabled(PickPrompt, false)
+				UipromptSetVisible(PickPrompt, false)
+				active = false
+			end
+		end
+	end
 end
 
-PickupsService.principalFunctionsPickupsMoney = function ()
+PickupsService.principalFunctionsPickupsMoney = function () -- Tick
+	local playerPed = PlayerPedId()
+	local coords = Citizen.InvokeNative(0xA86D5F069399F44D, playerPed, true, true)
 
+	if next(WorldMoneyPickups) == nil then
+		return
+	end
+
+	for _, pickup in pairs(WorldMoneyPickups) do
+		local pickupCoords = vector3(pickup.coords.X, pickup.coords.Y, pickup.coords.Z)
+		local distance = #(pickupCoords - coords)
+
+		if distance <= 5.0 then
+			Utils.DrawText3D(pickup.coords, name)
+		end
+
+		if distance <= 1.2 and not pickup.inRange then
+			Citizen.InvokeNative(0x69F4BE8C8CC4796C, playerPed, pickup.obj, 3000, 2048, 3)
+
+			if not active2 then
+				Citizen.InvokeNative(0x8A0FB4D03A630D21, PickPrompt, true)
+				Citizen.InvokeNative(0x71215ACCFDE075EE, PickPrompt, true)
+				active2 = true
+			end
+
+			if Citizen.InvokeNative(0xE0F65F0640EF0617, PickPrompt) then
+				TriggerServerEvent("vorpinventory:onPickupMoney", pickup.obj)
+				pickup.inRange = true
+				Citizen.InvokeNative(0x8A0FB4D03A630D21, PickPrompt, false)
+				Citizen.InvokeNative(0x71215ACCFDE075EE, PickPrompt, false)
+			end
+		else
+			if active2 then
+				Citizen.InvokeNative(0x8A0FB4D03A630D21, PickPrompt, false)
+				Citizen.InvokeNative(0x71215ACCFDE075EE, PickPrompt, false)
+				active2 = false
+			end
+		end
+	end
 end
 
 PickupsService.SetupPickPrompt = function ()
